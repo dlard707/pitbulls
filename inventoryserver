@@ -1,0 +1,135 @@
+local NombreMoneda = "PitBucks"
+local dss = game:GetService("DataStoreService")
+local ds = dss:GetDataStore("InventoryData")
+local bancoDB = dss:GetDataStore("Banco")
+
+
+function saveData(p)
+
+	local inventory = {}
+	--carta_azul = inventory["Bluecard"]
+
+	for i, value in pairs(p.Inventory:GetChildren()) do
+
+		inventory[value.Name] = value.Value
+	end
+
+	ds:SetAsync(p.UserId, inventory)
+	print(inventory)
+	print(inventory["Bluecard"])
+	--bancoDB.Value = bancoDB.Value + 5000 
+	--print(inventory["Bluecard"])
+	local ID_Cuenta = ""..p.UserId
+
+	local OK, errorMensaje = pcall(function()
+		bancoDB:SetAsync(ID_Cuenta, p.leaderstats[NombreMoneda].Value)
+	end)
+
+	if not OK then
+		warn(errorMensaje)
+	else
+		print("El dinero ha sido guardado en la cuenta "..ID_Cuenta)
+	end
+end
+
+
+game.Players.PlayerAdded:Connect(function(p)
+	-- leadeboard
+	local tablero = Instance.new("Folder", p)
+	tablero.Name = "leaderstats"
+
+	local Dinero = Instance.new("IntValue", tablero)
+	Dinero.Name = NombreMoneda
+
+
+	local ID_Cuenta = ""..p.UserId
+	--Dinero.Value = 100
+	local dinero_guardado = nil
+
+	pcall(function()
+		dinero_guardado = bancoDB:GetAsync(ID_Cuenta)
+	end)
+
+	if dinero_guardado ~= nil then
+
+		local inventory = {}
+		--carta_azul = inventory["Bluecard"]
+
+		for i, value in pairs(p.Inventory:GetChildren()) do
+
+			inventory[value.Name] = value.Value
+		end
+		Dinero.Value = dinero_guardado + 100 
+		print("Se obtuvo dinero del Banco")
+		Dinero.Value = Dinero.Value + 100 * inventory["Bluecard"]
+		print("premio pelas cartas azuis ".. 100 * inventory["Bluecard"] )
+
+	else
+		Dinero.Value = 50
+		print("No tiene cuenta bancaria, inicia com 50")
+	end
+	--while true do
+	--	--local inventory = {}
+	--	--local inventario = ds:SetAsync(p.UserId, inventory)
+	--	wait(15)
+	--	Dinero.Value = Dinero.Value + 100 
+	--	--print(inventario[p.UserId])
+	--	--print(blueCards["Bluecard"])
+	--end
+	--inventario
+	local invFolder = Instance.new("Folder", p)
+	invFolder.Name = "Inventory"
+
+	for i, item in pairs(game.ReplicatedStorage.Items:GetChildren()) do
+
+		local newValue = Instance.new("IntValue")
+		newValue.Name = item.Name
+		newValue.Value = 0
+		newValue.Parent = invFolder
+	end
+
+
+	p.CharacterAdded:Connect(function(c)
+
+		c.Humanoid.Touched:Connect(function(hit)
+
+			if hit:FindFirstChild("ITEM") then
+
+				invFolder[hit.Name].Value += 1
+
+				hit:Destroy()
+			end
+		end)
+	end)
+
+
+	local invData = ds:GetAsync(p.UserId) or {}
+
+	for itemName, itemCount in pairs(invData) do
+
+		invFolder[itemName].Value = itemCount
+	end
+end)
+
+
+game.ReplicatedStorage.InventoryRE.OnServerEvent:Connect(function(p, instruction, item)
+
+	if instruction == "drop" and p.Inventory:FindFirstChild(item) and p.Inventory[item].Value > 0 then
+
+		p.Inventory[item].Value -= 1
+
+		local newItem = game.ReplicatedStorage.Items[item]:Clone()
+		newItem.CFrame = p.Character.HumanoidRootPart.CFrame - p.Character.HumanoidRootPart.CFrame.LookVector * 5
+		newItem.Parent = workspace
+	end
+end)
+
+
+game.Players.PlayerRemoving:Connect(saveData)
+
+game:BindToClose(function()
+	for i, p in pairs(game.Players:GetPlayers()) do
+		saveData(p)
+
+	end
+end)
